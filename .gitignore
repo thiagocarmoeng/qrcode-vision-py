@@ -1,0 +1,38 @@
+# Ambiente virtual Python
+venv/
+.env/
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Diretórios de build
+build/
+dist/
+*.egg-info/
+
+# Arquivos de configuração temporária
+*.log
+*.pot
+*.mo
+*.sqlite3
+*.db
+*.bak
+*.swp
+*.swo
+*.tmp
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
+
+# PDF ou imagens geradas de relatórios
+*.pdf
+*.png
+*.jpg
+*.jpeg
+
+# Outros arquivos temporários
+logs/
+output/

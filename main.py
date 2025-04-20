@@ -6,10 +6,11 @@ import numpy as np
 import datetime
 import os
 from pdf2image import convert_from_path
-import ctypes
 from pyzbar.pyzbar import decode
 import threading
+
 cache_traducoes = {}
+
 # Inicializa o detector de QR Code do OpenCV
 detector = cv2.QRCodeDetector()
 
@@ -24,9 +25,9 @@ def traduzir_texto_async(texto):
         tradutor = Translator()
         traducao = tradutor.translate(texto, dest='pt').text
         cache_traducoes[texto] = traducao
-        print(f"✅ Tradução concluída: {traducao}")
+        print(f"Tradução concluída: {traducao}")
     except Exception as e:
-        print(f"❌ Erro na tradução: {e}")
+        print(f"Erro na tradução: {e}")
         cache_traducoes[texto] = "Erro"
 
 def salvar_log(dados_detectados):
@@ -46,48 +47,7 @@ def salvar_log(dados_detectados):
             f.write(f"Tradução: {traducao}\n")
             f.write("="*50 + "\n")
 
-    print(f"\n🔵 Resultados salvos em: {filename}")
-
-# def detectar_qr_em_frame(frame):
-#     """Detecta e traduz QR Codes em um frame usando pyzbar, com reforço de imagem."""
-#     dados_detectados = []
-
-#     frame_cinza = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-#     # Melhorar contraste
-#     frame_cinza = cv2.equalizeHist(frame_cinza)
-
-#     # Aumentar nitidez artificialmente
-#     kernel_sharpening = np.array([[-1,-1,-1],
-#                                   [-1, 9,-1],
-#                                   [-1,-1,-1]])
-#     frame_cinza = cv2.filter2D(frame_cinza, -1, kernel_sharpening)
-
-#     # Detectar com pyzbar
-#     qrcodes = decode(frame_cinza)
-
-#     if not qrcodes:
-#         print("Nenhum QR Code encontrado no frame.")
-#     else:
-#         for qr in qrcodes:
-#             pontos = np.array([qr.polygon], np.int32)
-#             pontos = pontos.reshape((-1, 1, 2))
-#             cv2.polylines(frame, [pontos], True, (0, 255, 0), 2)
-
-#             dados = qr.data.decode('utf-8')
-#             print(f"✅ QR Detectado: {dados}")
-
-#             traducao = traduzir_texto(dados)
-
-#             dados_detectados.append((dados, traducao))
-
-#             x, y, w, h = qr.rect
-#             cv2.putText(frame, f"Original: {dados}", (x, y - 30),
-#                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
-#             cv2.putText(frame, f"Traducao: {traducao}", (x, y - 10),
-#                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-
-#     return frame, dados_detectados
+    print(f"\n Resultados salvos em: {filename}")
 
 def traduzir_texto_async(texto):
     """Função que traduz texto de forma assíncrona e salva no cache."""
@@ -95,9 +55,9 @@ def traduzir_texto_async(texto):
         tradutor = Translator()
         traducao = tradutor.translate(texto, dest='pt').text
         cache_traducoes[texto] = traducao
-        print(f"✅ Tradução concluída: {traducao}")
+        print(f"Tradução concluída: {traducao}")
     except Exception as e:
-        print(f"❌ Erro na tradução: {e}")
+        print(f"Erro na tradução: {e}")
         cache_traducoes[texto] = "Erro"
 
 def detectar_qr_em_frame(frame):
@@ -127,7 +87,7 @@ def detectar_qr_em_frame(frame):
                 dados = qr.data.decode('utf-8')
 
                 if dados:
-                    print(f"✅ QR Detectado: {dados}")
+                    print(f"QR Detectado: {dados}")
 
                     # Desenhar contorno
                     pontos = np.array([qr.polygon], np.int32)
@@ -154,10 +114,10 @@ def detectar_qr_em_frame(frame):
                     dados_detectados.append((dados, traducao))
 
                 else:
-                    print("⚠️ QR Code detectado sem dados (vazio).")
+                    print("QR Code detectado sem dados (vazio).")
 
             except Exception as e:
-                print(f"❌ Erro ao processar QR Code: {e}")
+                print(f"Erro ao processar QR Code: {e}")
 
     return frame, dados_detectados
 
@@ -196,7 +156,7 @@ def usar_tela():
     frame, dados_detectados = detectar_qr_em_frame(frame)
 
     cv2.imshow("Leitor de QR Code (Tela)", frame)
-    print("▶️ Pressione qualquer tecla para continuar ou aguarde 5 segundos...")
+    print("Pressione qualquer tecla para continuar ou aguarde 5 segundos...")
     key = cv2.waitKey(5000)  # Timeout de 5 segundos
     cv2.destroyAllWindows()
 
@@ -219,7 +179,7 @@ def usar_arquivo():
     frame, dados_detectados = detectar_qr_em_frame(frame)
 
     cv2.imshow("Leitor de QR Code (Arquivo)", frame)
-    print("▶️ Pressione qualquer tecla para continuar ou aguarde 5 segundos...")
+    print("Pressione qualquer tecla para continuar ou aguarde 5 segundos...")
     key = cv2.waitKey(5000)
     cv2.destroyAllWindows()
 
@@ -266,7 +226,7 @@ def usar_pdf():
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
         cv2.imshow("Leitor de QR Code (PDF)", frame)
-        print("▶️ Pressione qualquer tecla para continuar ou aguarde 5 segundos...")
+        print("Pressione qualquer tecla para continuar ou aguarde 5 segundos...")
         cv2.waitKey(5000)
         cv2.destroyAllWindows()
 

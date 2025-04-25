@@ -108,7 +108,7 @@ src/
 ## 👨‍💻 Autor
 
 Desenvolvido por **Thiago do Carmo**  
-[LinkedIn](https://www.linkedin.com/in/thiagocarmoeng) | [GitHub](https://github.com/thiagocarmoeng)
+[LinkedIn](https://www.linkedin.com/in/thiago-augusto-do-carmo/) | [GitHub](https://github.com/thiagocarmoeng)
 
 ---
 

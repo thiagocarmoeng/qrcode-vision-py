@@ -30,6 +30,3 @@ A tradução do conteúdo dos QR Codes é realizada de maneira assíncrona, gara
 - Implementação de uma interface gráfica (GUI) para maior usabilidade.
 - Suporte a super-resolução de imagens para leitura de QR Codes de baixa qualidade.
 
----
-
-QRCode Vision Py representa uma base sólida para aplicações industriais, acadêmicas e de automação, oferecendo um sistema confiável, rápido e adaptável.

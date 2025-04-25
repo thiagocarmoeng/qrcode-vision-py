@@ -1,160 +1,158 @@
-"""
-comprovante_reader.py - Leitura de notas fiscais e extração de dados via OCR (Tesseract)
-"""
-
-import os
-import re
 import cv2
-import pytesseract
 import numpy as np
-from PIL import Image
+import pytesseract
+import re
+import os
 from tkinter import filedialog, Tk
-from core.utils import salvar_log
-
-import shutil
-import tempfile
 
 
-# Configura o caminho do executável do Tesseract (ajustável por variável de ambiente)
-pytesseract.pytesseract.tesseract_cmd = os.getenv(
-    "TESSERACT_CMD",
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
+# Configura o caminho do Tesseract (ajuste se necessário)
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 
-def selecionar_comprovante() -> str:
-    """
-    Abre um diálogo para o usuário selecionar uma imagem de nota fiscal.
-
-    Returns:
-        str: Caminho completo da imagem selecionada.
-    """
+def selecionar_imagem() -> str:
+    """Permite ao usuário escolher a imagem do comprovante."""
     root = Tk()
-    root.withdraw()  # Oculta a janela principal
+    root.withdraw()
     caminho = filedialog.askopenfilename(
-        title="Selecione a imagem da nota fiscal",
-        filetypes=[("Imagens", "*.png *.jpg *.jpeg *.tiff *.bmp *.webp")]
+        title="Selecione o comprovante",
+        filetypes=[("Imagens", "*.jpg *.jpeg *.png")]
     )
-    root.destroy()
     return caminho
 
-def copiar_para_temp(path_origem):
-    temp_dir = tempfile.gettempdir()
-    novo_caminho = os.path.join(temp_dir, "comprovante.jpg")
-    shutil.copy(path_origem, novo_caminho)
-    return novo_caminho
 
-def aplicar_ocr_em_imagem(path_imagem: str) -> str:
+def preprocessar_imagem(path_imagem: str) -> np.ndarray:
     """
-    Lê o texto de uma imagem utilizando OCR (Tesseract).
-
-    Args:
-        path_imagem (str): Caminho da imagem da nota fiscal.
-
-    Returns:
-        str: Texto bruto extraído da imagem.
+    Faz o carregamento seguro e pré-processamento da imagem para OCR.
     """
-    # path = os.path.normpath(path_imagem)
-    path_limpo = copiar_para_temp(path_imagem)
-    imagem = cv2.imread(path_limpo)
+    try:
+        path_imagem = os.path.normpath(path_imagem)
+        imagem_array = np.fromfile(path_imagem, dtype=np.uint8)
+        imagem = cv2.imdecode(imagem_array, cv2.IMREAD_COLOR)
 
-    if imagem is None:
-        raise FileNotFoundError("Imagem não encontrada ou não suportada.")
+        if imagem is None:
+            raise ValueError("Imagem não pôde ser carregada.")
 
-    # Pré-processamento
-    imagem_cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
-    imagem_eq = cv2.equalizeHist(imagem_cinza)
-    _, binarizada = cv2.threshold(imagem_eq, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # Conversão para cinza
+        cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
 
-    texto = pytesseract.image_to_string(binarizada, lang="por")
+        # Aumentar escala da imagem para melhorar OCR
+        escala = 1.5
+        largura = int(cinza.shape[1] * escala)
+        altura = int(cinza.shape[0] * escala)
+        redimensionada = cv2.resize(cinza, (largura, altura), interpolation=cv2.INTER_LINEAR)
+
+        # Equalização do histograma
+        equalizada = cv2.equalizeHist(redimensionada)
+
+        # Filtro de nitidez (sharpen)
+        kernel = np.array([[-1, -1, -1],
+                           [-1, 9, -1],
+                           [-1, -1, -1]])
+        nítida = cv2.filter2D(equalizada, -1, kernel)
+
+        # Binarização
+        _, binarizada = cv2.threshold(nítida, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+        return binarizada
+
+    except Exception as e:
+        raise ValueError(f"Erro ao processar imagem: {e}")
+
+
+def extrair_texto_da_imagem(imagem: np.ndarray) -> str:
+    """Executa o OCR na imagem usando Tesseract."""
+    config = r'--oem 3 --psm 6 -l por'
+    return pytesseract.image_to_string(imagem, config=config)
+
+
+def limpar_texto_ocr(texto: str) -> str:
+    """Corrige erros comuns de OCR."""
+    substituicoes = {
+        "ONPJ": "CNPJ",
+        "Docunento": "Documento",
+        "Conssunidor": "Consumidor",
+        "EletroL": "Eletrônica",
+        "VirUnit": "VlrUnit",
+        "ViCTotol": "VlrTotal",
+        "TOTALABS": "TOTAL",
+        "REDNEAA": "REDEMAIS",
+    }
+
+    for errado, certo in substituicoes.items():
+        texto = texto.replace(errado, certo)
+
     return texto
 
 
-import re
-
 def extrair_campos_nota(texto: str) -> dict:
-    """
-    Extrai campos relevantes de uma nota fiscal a partir do texto OCR usando expressões regulares.
-
-    Args:
-        texto (str): Texto bruto retornado pelo OCR.
-
-    Returns:
-        dict: Dicionário com os campos extraídos.
-    """
+    """Extrai CNPJ, data, valor e itens da nota a partir do texto limpo."""
     campos = {}
 
-    # Chave de acesso
-    chave = re.search(r'(\d{44}|\d{4}\s\d{4}\s\d{4}\s\d{4}\s\d{4}\s\d{4}\s\d{4}\s\d{4}\s\d{4}\s\d{2})', texto)
-    if chave:
-        campos["Chave de Acesso"] = chave.group().replace(" ", "")
-
-    # CNPJ emissor
-    cnpj = re.search(r'CNPJ\s*[:\-]?\s*(\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2})', texto, re.IGNORECASE)
+    # CNPJ
+    cnpj = re.search(r'(\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2})', texto)
     if cnpj:
         campos["CNPJ"] = cnpj.group(1)
 
     # Data de emissão
-    data_emissao = re.search(r'(\d{2}/\d{2}/\d{4})', texto)
-    if data_emissao:
-        campos["Data de Emissão"] = data_emissao.group(1)
+    data = re.search(r'(\d{2}/\d{2}/\d{4})', texto)
+    if data:
+        campos["Data de Emissão"] = data.group(1)
 
-    # Valor total
-    valor_total = re.search(r'(Valor\s+Total|Total\s+da\s+Nota)\s*[:\-]?\s*R?\$?\s*([\d.,]+)', texto, re.IGNORECASE)
-    if valor_total:
-        campos["Valor Total"] = valor_total.group(2)
+    # Valor total da nota
+    total = re.search(r'VALOR\s+TOTAL\s+(R\$)?\s*[;:=-]?\s*([\d]+[.,]\d{2})', texto, re.IGNORECASE)
+    if total:
+        campos["Valor Total"] = total.group(2)
 
-    # Itens detalhados
+    # Itens vendidos (código, nome, quantidade, valor unitário, total item)
     itens = re.findall(
-        r'(?P<codigo>\d{5,})\s+(?P<nome>.+?)\s+(?P<quant>\d+[,.]?\d*)\s+\w+\s+x\s+(?P<unitario>\d+[,.]?\d*)\s*=\s*(?P<total>\d+[,.]?\d*)',
+        r'(\d{8,13})\s+(.+?)\s+(\d+)\s+\w+\s+x\s+([\d.,]+)\s+([\d.,]+)',
         texto
     )
-
-        # Itens da nota (linha por linha com quantidade, unitário, total)
-    linhas_item = re.findall(
-        r'(\d+)\s+(\d{8,13})\s+(.+?)\s+(\d+[.,]?\d*)\s+\w+\s+x\s+([\d.,]+)\s+([\d.,]+)',
-        texto,
-        re.IGNORECASE
-    )
-
-    if linhas_item:
+    if itens:
         campos["Itens"] = []
-        for i, item in enumerate(linhas_item, 1):
+        for i, item in enumerate(itens, 1):
             campos["Itens"].append({
                 "Item Nº": i,
-                "Código": item[1],
-                "Nome": item[2].strip(),
-                "Quantidade": item[3],
-                "Valor Unitário": item[4],
-                "Valor Total Item": item[5]
+                "Código": item[0],
+                "Nome": item[1].strip(),
+                "Quantidade": item[2],
+                "Valor Unitário": item[3],
+                "Valor Total Item": item[4]
             })
-
 
     return campos
 
-def usar_comprovante():
-    """
-    Seleciona uma imagem de nota fiscal, aplica OCR e extrai os campos relevantes via regex.
-    """
-    caminho = selecionar_comprovante()
-    if not caminho:
-        print("Nenhum arquivo selecionado.")
-        return
 
-    try:
-        print("🧠 Extraindo texto com OCR...")
-        texto_extraido = aplicar_ocr_em_imagem(caminho)
-
-        campos = extrair_campos_nota(texto_extraido)
-
-        if campos:
-            print("\n📋 Campos extraídos:")
-            for k, v in campos.items():
-                print(f"{k}: {v}")
-            salvar_log(list(campos.items()))
+def mostrar_resultados(campos: dict):
+    """Exibe os campos extraídos de maneira organizada."""
+    print("\n===== RESULTADOS EXTRAÍDOS =====")
+    for chave, valor in campos.items():
+        if chave == "Itens":
+            print("\n📦 Itens da Nota:")
+            for item in valor:
+                for k, v in item.items():
+                    print(f"   {k}: {v}")
+                print("   ----------------------------")
         else:
-            print("⚠️ Nenhum campo estruturado foi detectado.")
-            salvar_log([("Texto OCR", texto_extraido)])
+            print(f"{chave}: {valor}")
+    print("================================\n")
+
+
+def processar_comprovante():
+    """Pipeline completo: seleção, OCR, extração e exibição."""
+    try:
+        path = selecionar_imagem()
+        if not path:
+            print("Nenhum arquivo selecionado.")
+            return
+
+        imagem = preprocessar_imagem(path)
+        texto_bruto = extrair_texto_da_imagem(imagem)
+        texto_limpo = limpar_texto_ocr(texto_bruto)
+        campos = extrair_campos_nota(texto_limpo)
+        mostrar_resultados(campos)
 
     except Exception as e:
         print(f"Erro ao processar o comprovante: {e}")
+
